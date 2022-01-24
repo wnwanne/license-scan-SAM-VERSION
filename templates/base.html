@@ -1,0 +1,24 @@
+<html>
+    <head>
+        <title>License Scan Processing </title>
+    </head>
+    <body>
+           <div>
+        Nav:
+        <a href="{{ url_for('index') }}">Upload</a>
+        <a href="{{ url_for('uploading') }}">Processing</a>
+        <a href="{{ url_for('display') }}">Display</a>
+    </div>
+        <hr>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <ul>
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </body>
+</html>

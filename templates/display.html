@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<H1>Picture Information</H1> <br>
+
+<H2>Face ID: {{ face_id}}</H2> <br>
+<H2>Age range: Between {{ age_low }} and {{ age_high }}</H2> <br>
+<H2>Smiling: {{ response_Smile}}</H2> <br>
+<H2>Wearing eye glasses: {{ response_Eyeglasses}}</H2> <br>
+<H2>Wearing sun glasses: {{ response_Sunglasses}}</H2> <br>
+<H2>Gender: {{ response_Gender}}</H2> <br>
+<H2>Has Beard: {{ response_Beard}}</H2> <br>
+<H2>Has mustache: {{ response_Mustache}}</H2> <br>
+<H2>Eyes Open: {{ response_EyesOpen}}</H2> <br>
+<H2>Mouth Open: {{ response_MouthOpen}}</H2> <br>
+
+
+</body>
+</html>
+{% endblock %}

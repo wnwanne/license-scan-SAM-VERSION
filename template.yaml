@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  License Scanning Rekognition Demo
+
+  Provides a scan of on image, with facial features.
+  Also supports image collection analysis
+
+Parameters:
+  BucketPrefix:
+    Type: String
+    Default: "image"
+    Description: S3 prefix and file name to upload test images
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    MemorySize: 256
+    Timeout: 30
+    Tracing: Active
+
+Resources:
+
+  #DynamoDB
+  RekDemoDdbTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      KeySchema:
+        - AttributeName: pic_id
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: pic_id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: True
+
+  # S3 Bucket
+  RekDemoS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-${AWS::AccountId}-rekimg"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  #Rek Collection
+  RekImageCollection:
+    Type: Custom::CustomRekImageCollection
+    Properties:
+      ServiceToken: !GetAtt CreateRekCollectionLambda.Arn
+
+  #Lambda Index Faces Event
+  IndexFacesLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/index_faces
+      Environment:
+        Variables:
+          REK_COLLECTION_ID: !Sub "${RekImageCollection}"
+          DDB_TABLE_NAME: !Sub "${RekDemoDdbTable}"
+      Policies:
+      - DynamoDBWritePolicy:
+          TableName: !Ref RekDemoDdbTable
+      - RekognitionWriteOnlyAccessPolicy:
+          CollectionId: !Sub "${RekImageCollection}"       
+      - Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: s3:GetObject*
+            Resource: 
+            - !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-rekimg/${BucketPrefix}/*"
+      Events:
+        CreateThumbnailEvent:
+          Type: S3
+          Properties:
+            Bucket: !Ref RekDemoS3Bucket
+            Events: "s3:ObjectCreated:*"
+            Filter: 
+              S3Key:
+                Rules:
+                - Name: prefix     
+                  Value: !Sub "${BucketPrefix}"
+
+  #Lambda Rek Collection Creation
+  CreateRekCollectionLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          STACKPREFIX: !Sub "${AWS::StackName}"
+      CodeUri: lambda/create_collection
+      Role: !GetAtt CreateRekCollectionLambdaRole.Arn
+      ReservedConcurrentExecutions: 1  
+
+  #Lambda Rek Collection Creation Role
+  CreateRekCollectionLambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-ManageCollection"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "rekognition:DescribeCollection"
+                  - "rekognition:ListCollections"
+                  - "rekognition:CreateCollection"
+                  - "rekognition:DeleteCollection"
+                Resource:
+                  - !Sub "arn:aws:rekognition:${AWS::Region}:${AWS::AccountId}:collection/${AWS::StackName}*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:*:*:*"
+
+
+
+
+
+Outputs:
+  BucketName:
+    Description: Value for bucket_name
+    Value: !Sub "${RekDemoS3Bucket}"
+  FolderName:
+    Description: Value for folder_name
+    Value: !Sub "${BucketPrefix}/"
+  TableName:
+    Description: Value for table_name
+    Value: !Sub "${RekDemoDdbTable}"
+  ImageCollectionID:
+    Description: Rek Image Collection
+    Value: !Sub "${RekImageCollection}"
+
